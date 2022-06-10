@@ -3,6 +3,7 @@
   <base>CRM/Case</base>
   <class>Case</class>
   <name>civicrm_case</name>
+  <description>Collections of activities and relationships for a given purpose.</description>
   <comment>This table stores information about cases grouping activities.</comment>
   <add>1.8</add>
   <log>true</log>
@@ -130,6 +131,7 @@
     <uniqueName>case_deleted</uniqueName>
     <type>boolean</type>
     <default>0</default>
+    <required>true</required>
     <import>true</import>
     <html>
       <type>CheckBox</type>
@@ -152,6 +154,7 @@
     <html>
       <label>Created Date</label>
     </html>
+    <readonly>true</readonly>
     <add>4.7</add>
   </field>
   <field>

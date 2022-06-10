@@ -325,12 +325,10 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
     }
     $this->setCustomDataTypes();
 
-    if ($this->_mode) {
-      $this->assign('participantMode', $this->_mode);
-    }
+    $this->assign('participantMode', $this->_mode);
 
+    $this->assign('showFeeBlock', $this->_showFeeBlock);
     if ($this->_showFeeBlock) {
-      $this->assign('showFeeBlock', TRUE);
       $isMonetary = CRM_Core_DAO::getFieldValue('CRM_Event_DAO_Event', $this->_showFeeBlock, 'is_monetary');
       if ($isMonetary) {
         $this->assign('feeBlockPaid', TRUE);
@@ -360,10 +358,8 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
       return;
     }
 
-    if ($this->_id) {
-      // assign participant id to the template
-      $this->assign('participantId', $this->_id);
-    }
+    // assign participant id to the template
+    $this->assign('participantId', $this->_id);
 
     // when fee amount is included in form
     if (!empty($_POST['hidden_feeblock']) || !empty($_POST['send_receipt'])) {
@@ -790,7 +786,7 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
    * @param array $values
    *   Posted values of the form.
    * @param $files
-   * @param $self
+   * @param self $self
    *
    * @return array
    *   list of errors to be posted back to the form
@@ -1481,8 +1477,6 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
         if ($this->_isPaidEvent) {
           // fix amount for each of participants ( for bulk mode )
           $eventAmount = [];
-          $invoiceSettings = Civi::settings()->get('contribution_invoice_settings');
-          $invoicing = $invoiceSettings['invoicing'] ?? NULL;
           $totalTaxAmount = 0;
 
           //add dataArray in the receipts in ADD and UPDATE condition
@@ -1493,7 +1487,7 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
           elseif ($this->_action & CRM_Core_Action::UPDATE) {
             $line = $this->_values['line_items'];
           }
-          if ($invoicing) {
+          if (Civi::settings()->get('invoicing')) {
             foreach ($line as $key => $value) {
               if (isset($value['tax_amount'])) {
                 $totalTaxAmount += $value['tax_amount'];
@@ -1505,7 +1499,6 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
                 }
               }
             }
-            $this->assign('totalTaxAmount', $totalTaxAmount);
             $this->assign('taxTerm', $this->getSalesTaxTerm());
             $this->assign('dataArray', $dataArray);
           }
@@ -1522,13 +1515,16 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
           $eventAmount = array_merge($eventAmount, $additionalParticipantDetails);
           $this->assign('amount', $eventAmount);
         }
-
+        $this->assign('totalTaxAmount', $totalTaxAmount ?? 0);
         $sendTemplateParams = [
-          'groupName' => 'msg_tpl_workflow_event',
-          'valueName' => 'event_offline_receipt',
+          'workflow' => 'event_offline_receipt',
           'contactId' => $contactID,
           'isTest' => !empty($this->_defaultValues['is_test']),
           'PDFFilename' => ts('confirmation') . '.pdf',
+          'modelProps' => [
+            'participantID' => $this->_id,
+            'eventID' => $params['event_id'],
+          ],
         ];
 
         // try to send emails only if email id is present
@@ -1550,9 +1546,7 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
         $contributionId = CRM_Core_DAO::getFieldValue('CRM_Event_DAO_ParticipantPayment',
           $this->_id, 'contribution_id', 'participant_id'
         );
-        $prefixValue = Civi::settings()->get('contribution_invoice_settings');
-        $invoicing = $prefixValue['invoicing'] ?? NULL;
-        if (!empty($taxAmt) && (isset($invoicing) && isset($prefixValue['is_email_pdf']))) {
+        if (Civi::settings()->get('invoice_is_email_pdf')) {
           $sendTemplateParams['isEmailPdf'] = TRUE;
           $sendTemplateParams['contributionId'] = $contributionId;
         }
@@ -1662,11 +1656,9 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
 
       //retrieve custom information
       $form->_values = [];
-      CRM_Event_Form_Registration::initEventFee($form, $event['id']);
+      CRM_Event_Form_Registration::initEventFee($form, $event['id'], FALSE);
       CRM_Event_Form_Registration_Register::buildAmount($form, TRUE, $form->_discountId);
       $lineItem = [];
-      $invoiceSettings = Civi::settings()->get('contribution_invoice_settings');
-      $invoicing = $invoiceSettings['invoicing'] ?? NULL;
       $totalTaxAmount = 0;
       if (!CRM_Utils_System::isNull(CRM_Utils_Array::value('line_items', $form->_values))) {
         $lineItem[] = $form->_values['line_items'];
@@ -1674,9 +1666,7 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
           $totalTaxAmount = $value['tax_amount'] + $totalTaxAmount;
         }
       }
-      if ($invoicing) {
-        $form->assign('totalTaxAmount', $totalTaxAmount);
-      }
+      $form->assign('totalTaxAmount', Civi::settings()->get('invoicing') ? ($totalTaxAmount ?? NULL) : NULL);
       $form->assign('lineItem', empty($lineItem) ? FALSE : $lineItem);
       $discounts = [];
       if (!empty($form->_values['discount'])) {
@@ -1739,7 +1729,7 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
         }
 
         $form->add('select', 'contribution_status_id',
-          ts('Payment Status'), CRM_Contribute_BAO_Contribution_Utils::getContributionStatuses('participant')
+          ts('Payment Status'), CRM_Contribute_BAO_Contribution_Utils::getPendingAndCompleteStatuses()
         );
 
         $form->add('text', 'check_number', ts('Check Number'),
@@ -2187,7 +2177,7 @@ class CRM_Event_Form_Participant extends CRM_Contribute_Form_AbstractEditPayment
   }
 
   /**
-   * Store the parameters to create a payment, if approprite, on the form.
+   * Store the parameters to create a payment, if appropriate, on the form.
    *
    * @param array $params
    *   Params as submitted.

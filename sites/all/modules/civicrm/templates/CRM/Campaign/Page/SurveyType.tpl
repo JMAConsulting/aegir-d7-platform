@@ -4,7 +4,7 @@
 {else}
 {if $rows}
 <div class="action-link">
-  {crmButton p=$addSurveyType.0 q=$addSurveyType.1 icon="crm-i fa-plus-circle"}{ts 1=$GName}Add %1{/ts}{/crmButton}
+  {crmButton p=$addSurveyType.0 q=$addSurveyType.1 icon="plus-circle"}{ts 1=$GName}Add %1{/ts}{/crmButton}
 </div>
 
 <div id={$gName}>
@@ -31,17 +31,17 @@
         <tr id="option_value-{$row.id}" class="crm-entity crm-admin-options_{$row.id} {if NOT $row.is_active} disabled{/if}">
           <td class="crm-admin-options-label crm-editable" data-field="label">{$row.label}</td>
           <td class="crm-admin-options-value">{$row.value}</td>
-          <td class="crm-admin-options-description">{$row.description}</td>
-          <td class="nowrap crm-admin-options-order">{$row.weight}</td>
+          <td class="crm-admin-options-description">{if !empty($row.description)}{$row.description}{/if}</td>
+          <td class="nowrap crm-admin-options-order">{$row.weight|smarty:nodefaults}</td>
           <td class="crm-admin-options-is_reserved">{if $row.is_reserved eq 1} {ts}Yes{/ts} {else} {ts}No{/ts} {/if}</td>
           <td class="crm-admin-options-is_active" id="row_{$row.id}_status">{if $row.is_active eq 1} {ts}Yes{/ts} {else} {ts}No{/ts} {/if}</td>
-          <td>{$row.action|replace:'xx':$row.id}</td>
+          <td>{$row.action|smarty:nodefaults|replace:'xx':$row.id}</td>
         </tr>
         {/foreach}
         </table>
         {/strip}
         <div class="action-link">
-          {crmButton p=$addSurveyType.0 q=$addSurveyType.1 icon="crm-i fa-plus-circle"}{ts 1=$GName}Add %1{/ts}{/crmButton}
+          {crmButton p=$addSurveyType.0 q=$addSurveyType.1 icon="plus-circle"}{ts 1=$GName}Add %1{/ts}{/crmButton}
         </div>
 
 </div>

@@ -16,12 +16,6 @@
  */
 class CRM_Report_Form_Contribute_Lybunt extends CRM_Report_Form {
 
-  protected $_charts = [
-    '' => 'Tabular',
-    'barChart' => 'Bar Chart',
-    'pieChart' => 'Pie Chart',
-  ];
-
   /**
    * This is the report that links will lead to.
    *
@@ -35,6 +29,7 @@ class CRM_Report_Form_Contribute_Lybunt extends CRM_Report_Form {
   protected $lifeTime_from = NULL;
   protected $lifeTime_where = NULL;
   protected $_customGroupExtends = [
+    'Contribution',
     'Contact',
     'Individual',
     'Household',
@@ -149,6 +144,14 @@ class CRM_Report_Form_Contribute_Lybunt extends CRM_Report_Form {
             'title' => ts('Email on hold'),
           ],
         ],
+        'filters' => [
+          'on_hold' => [
+            'title' => ts('On Hold'),
+            'type' => CRM_Utils_Type::T_INT,
+            'operatorType' => CRM_Report_Form::OP_MULTISELECT,
+            'options' => ['' => ts('Any')] + CRM_Core_PseudoConstant::emailOnHoldOptions(),
+          ],
+        ],
       ],
       'civicrm_phone' => [
         'dao' => 'CRM_Core_DAO_Phone',
@@ -248,6 +251,13 @@ class CRM_Report_Form_Contribute_Lybunt extends CRM_Report_Form {
     // If we have a campaign, build out the relevant elements
     $this->addCampaignFields('civicrm_contribution');
 
+    // Add charts support
+    $this->_charts = [
+      '' => ts('Tabular'),
+      'barChart' => ts('Bar Chart'),
+      'pieChart' => ts('Pie Chart'),
+    ];
+
     $this->_groupFilter = TRUE;
     $this->_tagFilter = TRUE;
     parent::__construct();
@@ -307,6 +317,7 @@ class CRM_Report_Form_Contribute_Lybunt extends CRM_Report_Form {
         INNER JOIN $this->contactTempTable restricted_contacts
           ON restricted_contacts.cid = {$this->_aliases['civicrm_contribution']}.contact_id
           AND {$this->_aliases['civicrm_contribution']}.is_test = 0
+          AND {$this->_aliases['civicrm_contribution']}.is_template = 0
         INNER JOIN civicrm_contact {$this->_aliases['civicrm_contact']}
           ON restricted_contacts.cid = {$this->_aliases['civicrm_contact']}.id";
 
@@ -326,6 +337,7 @@ class CRM_Report_Form_Contribute_Lybunt extends CRM_Report_Form {
       }
       $this->_from .= " ON {$this->_aliases['civicrm_contribution']}.contact_id = {$this->_aliases['civicrm_contact']}.id
          AND {$this->_aliases['civicrm_contribution']}.is_test = 0
+         AND {$this->_aliases['civicrm_contribution']}.is_template = 0
          AND " . $this->whereClauseLastYear("{$this->_aliases['civicrm_contribution']}.receive_date") . "
        {$this->_aclFrom} ";
       $this->selectivelyAddLocationTablesJoinsToFilterQuery();
@@ -472,7 +484,7 @@ class CRM_Report_Form_Contribute_Lybunt extends CRM_Report_Form {
   }
 
   /**
-   * @param $rows
+   * @param array $rows
    *
    * @return array
    */
@@ -627,7 +639,7 @@ class CRM_Report_Form_Contribute_Lybunt extends CRM_Report_Form {
     $current_year = $this->_params['yid_value'];
     $previous_year = $current_year - 1;
     $interval[$previous_year] = $previous_year;
-    $interval['life_time'] = 'Life Time';
+    $interval['life_time'] = ts('Life Time');
 
     foreach ($rows as $key => $row) {
       // The final row contains the totals so we don't need to include it here.

@@ -17,16 +17,16 @@ Depends: CRM/common/enableDisableApi.tpl and CRM/common/jsortable.tpl
       </thead>
       <tbody>
         {foreach from=$remoteExtensionRows key=extKey item=row}
-        {if $localExtensionRows[$extKey]}
+        {if array_key_exists($extKey, $localExtensionRows)}
           {continue}
         {/if}
         <tr id="addnew-row_{$row.file}" class="crm-extensions crm-extensions_{$row.file}">
           <td class="crm-extensions-label">
-              <a class="collapsed" href="#"></a>&nbsp;<strong>{$row.label}</strong><br/>({$row.key})
+            <a class="collapsed" href="#"></a>&nbsp;<strong>{$row.label|escape}</strong><br/>{$row.description|escape}
           </td>
           <td class="crm-extensions-version">{$row.version|escape}</td>
           <td class="crm-extensions-description">{$row.type|capitalize}</td>
-          <td>{$row.action|replace:'xx':$row.id}</td>
+          <td>{$row.action|smarty:nodefaults|replace:'xx':$row.id}</td>
         </tr>
         <tr class="hiddenElement" id="crm-extensions-details-addnew-{$row.file}">
             <td>

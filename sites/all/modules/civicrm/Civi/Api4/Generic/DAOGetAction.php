@@ -10,13 +10,6 @@
  +--------------------------------------------------------------------+
  */
 
-/**
- *
- * @package CRM
- * @copyright CiviCRM LLC https://civicrm.org/licensing
- */
-
-
 namespace Civi\Api4\Generic;
 
 use Civi\Api4\Query\Api4SelectQuery;
@@ -36,9 +29,11 @@ class DAOGetAction extends AbstractGetAction {
   use Traits\DAOActionTrait;
 
   /**
-   * Fields to return. Defaults to all non-custom fields `['*']`.
+   * Fields to return. Defaults to all standard (non-custom, non-extra) fields `['*']`.
    *
-   * The keyword `"custom.*"` selects all custom fields. So to select all core + custom fields, select `['*', 'custom.*']`.
+   * The keyword `"custom.*"` selects all custom fields (except those belonging to multi-record custom field sets). So to select all standard + custom fields, select `['*', 'custom.*']`.
+   *
+   * Multi-record custom field sets are represented as their own entity, so join to that entity to get those custom fields.
    *
    * Use the dot notation to perform joins in the select clause, e.g. selecting `['*', 'contact.*']` from `Email::get()`
    * will select all fields for the email + all fields for the related contact.
@@ -85,9 +80,17 @@ class DAOGetAction extends AbstractGetAction {
    */
   protected $having = [];
 
+  /**
+   * @throws \API_Exception
+   * @throws \CRM_Core_Exception
+   */
   public function _run(Result $result) {
     // Early return if table doesn't exist yet due to pending upgrade
     $baoName = $this->getBaoName();
+    if (!$baoName) {
+      // In some cases (eg. site spin-up) the code may attempt to call the api before the entity name is registered.
+      throw new \API_Exception("BAO for {$this->getEntityName()} is not available. This could be a load-order issue");
+    }
     if (!$baoName::tableHasBeenAdded()) {
       \Civi::log()->warning("Could not read from {$this->getEntityName()} before table has been added. Upgrade required.", ['civi.tag' => 'upgrade_needed']);
       return;
@@ -106,20 +109,45 @@ class DAOGetAction extends AbstractGetAction {
     $onlyCount = $this->getSelect() === ['row_count'];
 
     if (!$onlyCount) {
+      // Typical case: fetch various fields.
       $query = new Api4SelectQuery($this);
       $rows = $query->run();
       \CRM_Utils_API_HTMLInputCoder::singleton()->decodeRows($rows);
       $result->exchangeArray($rows);
+
       // No need to fetch count if we got a result set below the limit
       if (!$this->getLimit() || count($rows) < $this->getLimit()) {
-        $result->rowCount = count($rows) + $this->getOffset();
-        $getCount = FALSE;
+        if ($getCount) {
+          $result->setCountMatched(count($rows) + $this->getOffset());
+          $getCount = FALSE;
+        }
+        else {
+          // Set rowCount for backward compatibility.
+          $result->rowCount = count($rows) + $this->getOffset();
+        }
       }
     }
+
     if ($getCount) {
       $query = new Api4SelectQuery($this);
-      $result->rowCount = $query->getCount();
+      $result->setCountMatched($query->getCount());
     }
+  }
+
+  /**
+   * @param string $fieldName
+   * @param string $op
+   * @param mixed $value
+   * @param bool $isExpression
+   * @return $this
+   * @throws \API_Exception
+   */
+  public function addWhere(string $fieldName, string $op, $value = NULL, bool $isExpression = FALSE) {
+    if (!in_array($op, CoreUtil::getOperators())) {
+      throw new \API_Exception('Unsupported operator');
+    }
+    $this->where[] = [$fieldName, $op, $value, $isExpression];
+    return $this;
   }
 
   /**

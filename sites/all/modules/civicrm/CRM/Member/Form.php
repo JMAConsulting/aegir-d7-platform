@@ -99,7 +99,7 @@ class CRM_Member_Form extends CRM_Contribute_Form_AbstractEditPayment {
   /**
    * Add to the status message.
    *
-   * @param $message
+   * @param string $message
    */
   protected function addStatusMessage($message) {
     $this->statusMessage[] = $message;
@@ -159,6 +159,7 @@ class CRM_Member_Form extends CRM_Contribute_Form_AbstractEditPayment {
 
     $this->assign('context', $this->_context);
     $this->assign('membershipMode', $this->_mode);
+    $this->assign('newCredit', CRM_Core_Config::isEnabledBackOfficeCreditCardPayments());
     $this->allMembershipTypeDetails = CRM_Member_BAO_Membership::buildMembershipTypeValues($this, [], TRUE);
     foreach ($this->allMembershipTypeDetails as $index => $membershipType) {
       if ($membershipType['auto_renew']) {
@@ -237,10 +238,8 @@ class CRM_Member_Form extends CRM_Contribute_Form_AbstractEditPayment {
     $this->assign('recurProcessor', json_encode($this->_recurPaymentProcessors));
     // Build the form for auto renew. This is displayed when in credit card mode or update mode.
     // The reason for showing it in update mode is not that clear.
+    $this->assign('allowAutoRenew', $this->_mode && !empty($this->_recurPaymentProcessors));
     if ($this->_mode || ($this->_action & CRM_Core_Action::UPDATE)) {
-      if (!empty($this->_recurPaymentProcessors)) {
-        $this->assign('allowAutoRenew', TRUE);
-      }
 
       $autoRenewElement = $this->addElement('checkbox', 'auto_renew', ts('Membership renewed automatically'),
         NULL, ['onclick' => "showHideByValue('auto_renew','','send-receipt','table-row','radio',true); showHideNotice( );"]
@@ -490,6 +489,7 @@ class CRM_Member_Form extends CRM_Contribute_Form_AbstractEditPayment {
    * @param array $formValues
    *
    * @return array
+   * @throws \API_Exception
    */
   protected function setPriceSetParameters(array $formValues): array {
     // process price set and get total amount and line items.
@@ -498,12 +498,9 @@ class CRM_Member_Form extends CRM_Contribute_Form_AbstractEditPayment {
     $priceSetDetails = $this->getPriceSetDetails($formValues);
     $this->_priceSet = $priceSetDetails[$this->_priceSetId];
     $this->order = new CRM_Financial_BAO_Order();
-    $this->order->setPriceSelectionFromUnfilteredInput($formValues);
-    $this->order->setPriceSetID($this->getPriceSetID($formValues));
     $this->order->setForm($this);
-    if ($priceSetDetails[$this->order->getPriceSetID()]['is_quick_config'] && isset($formValues['total_amount'])) {
-      // Amount overrides only permitted on quick config.
-      // Possibly Order object should enforce this...
+    $this->order->setPriceSelectionFromUnfilteredInput($formValues);
+    if (isset($formValues['total_amount'])) {
       $this->order->setOverrideTotalAmount((float) $formValues['total_amount']);
     }
     $this->order->setOverrideFinancialTypeID((int) $formValues['financial_type_id']);
@@ -568,6 +565,29 @@ class CRM_Member_Form extends CRM_Contribute_Form_AbstractEditPayment {
    */
   protected function getPaymentInstrumentID(): int {
     return (int) $this->getSubmittedValue('payment_instrument_id') ?: $this->_paymentProcessor['object']->getPaymentInstrumentID();
+  }
+
+  /**
+   * Get the last 4 numbers of the card.
+   *
+   * @return int|null
+   */
+  protected function getPanTruncation(): ?int {
+    $card = $this->getSubmittedValue('credit_card_number');
+    return $card ? (int) substr($card, -4) : NULL;
+  }
+
+  /**
+   * Get the card_type_id.
+   *
+   * This value is the integer representing the option value for
+   * the credit card type (visa, mastercard). It is stored as part of the
+   * payment record in civicrm_financial_trxn.
+   *
+   * @return int|null
+   */
+  protected function getCardTypeID(): ?int {
+    return CRM_Core_PseudoConstant::getKey('CRM_Core_BAO_FinancialTrxn', 'card_type_id', $this->getSubmittedValue('credit_card_type'));
   }
 
 }

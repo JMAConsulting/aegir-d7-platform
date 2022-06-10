@@ -26,7 +26,8 @@
   </div>
 {/if}
 
-{if $action NEQ 8 and $priceField}
+{* priceField is set when e.g. in browse mode *}
+{if $action NEQ 8 and !empty($priceField)}
 <div class="crm-content-block crm-block">
   <div class="action-link">
     {if !$isReserved}
@@ -57,10 +58,10 @@
       </tr>
       </thead>
       {foreach from=$priceField key=fid item=row}
-      <tr id="price_field-{$row.id}" class="crm-entity {cycle values="odd-row,even-row"} {$row.class}{if NOT $row.is_active} disabled{/if}">
+      <tr id="price_field-{$row.id}" class="crm-entity {cycle values="odd-row,even-row"}{if !empty($row.class)} {$row.class}{/if}{if NOT $row.is_active} disabled{/if}">
         <td class="crm-editable" data-field="label">{$row.label}</td>
         <td>{$row.html_type_display}</td>
-        <td class="nowrap">{$row.weight}</td>
+        <td class="nowrap">{$row.weight|smarty:nodefaults}</td>
         <td class="crm-editable" data-field="is_required" data-type="boolean">{if $row.is_required eq 1} {ts}Yes{/ts} {else} {ts}No{/ts} {/if}</td>
         <td id="row_{$row.id}_status">{if $row.is_active eq 1} {ts}Yes{/ts} {else} {ts}No{/ts} {/if}</td>
         <td>{if $row.active_on}{$row.active_on|crmDate}{/if}</td>
@@ -73,7 +74,7 @@
       </td>
             <td>{if $row.html_type eq "Text / Numeric Quantity" }{$row.tax_amount|crmMoney}{/if}</td>
         {/if}
-        <td class="field-action">{$row.action|replace:'xx':$row.id}</td>
+        <td class="field-action">{$row.action|smarty:nodefaults|replace:'xx':$row.id}</td>
       </tr>
       {/foreach}
     </table>

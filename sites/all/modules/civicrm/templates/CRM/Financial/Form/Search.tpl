@@ -21,6 +21,7 @@
     <div class="crm-accordion-body">
       <div id="financial-search-form" class="crm-block crm-form-block">
         <table class="form-layout-compressed">
+          {if !empty($elements)}
           {* Loop through all defined search criteria fields (defined in the buildForm() function). *}
           {foreach from=$elements item=element}
             <tr class="crm-financial-search-form-block-{$element}">
@@ -28,16 +29,17 @@
               <td>{$form.$element.html}</td>
             </tr>
           {/foreach}
+          {/if}
         </table>
       </div>
     </div>
   </div>
 </div>
-<div class="form-layout-compressed">{$form.batch_update.html}&nbsp;{$form.submit.html}</div><br/>
+{if !empty($form.batch_update)}<div class="form-layout-compressed">{$form.batch_update.html}&nbsp;{$form.submit.html}</div><br/>{/if}
 <table id="crm-batch-selector-{$batchStatus}" class="row-highlight">
   <thead>
     <tr>
-      <th class="crm-batch-checkbox">{$form.toggleSelect.html}</th>
+      <th class="crm-batch-checkbox">{if !empty($form.toggleSelect.html)}{$form.toggleSelect.html}{/if}</th>
       <th class="crm-batch-name">{ts}Batch Name{/ts}</th>
       <th class="crm-batch-payment_instrument">{ts}Payment Method{/ts}</th>
       <th class="crm-batch-item_count">{ts}Item Count{/ts}</th>
@@ -228,7 +230,7 @@ CRM.$(function($) {
           CRM.alert({/literal}'{ts escape="js"}An error occurred while processing your request.{/ts}', $("#batch_update option[value=" + op + "]").text() + ' {ts escape="js"}Error{/ts}'{literal}, 'error');
         }
       },
-      'json').error(serverError);
+      'json').fail(serverError);
   }
 
   function validateOp(records, op) {

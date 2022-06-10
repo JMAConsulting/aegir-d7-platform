@@ -1,5 +1,4 @@
 <?php
-
 /*
  +--------------------------------------------------------------------+
  | Copyright CiviCRM LLC. All rights reserved.                        |
@@ -9,21 +8,19 @@
  | and copyright information, see https://civicrm.org/licensing       |
  +--------------------------------------------------------------------+
  */
-
-/**
- *
- * @package CRM
- * @copyright CiviCRM LLC https://civicrm.org/licensing
- */
-
 namespace Civi\Api4;
 
 /**
- * Navigation entity.
+ * Navigation menu items.
  *
  * @searchable none
+ * @orderBy weight
+ * @groupWeightsBy domain_id,parent_id
+ * @since 5.19
  * @package Civi\Api4
  */
 class Navigation extends Generic\DAOEntity {
+  use Generic\Traits\SortableEntity;
+  use Generic\Traits\ManagedEntity;
 
 }

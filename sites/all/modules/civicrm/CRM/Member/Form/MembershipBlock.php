@@ -37,7 +37,7 @@ class CRM_Member_Form_MembershipBlock extends CRM_Contribute_Form_ContributionPa
     if (isset($this->_id)) {
       $defaults = CRM_Member_BAO_Membership::getMembershipBlock($this->_id);
     }
-    $defaults['member_is_active'] = $defaults['is_active'];
+    $defaults['member_is_active'] = $defaults['is_active'] ?? FALSE;
 
     // Set Display Minimum Fee default to true if we are adding a new membership block
     if (!isset($defaults['id'])) {
@@ -386,7 +386,7 @@ class CRM_Member_Form_MembershipBlock extends CRM_Contribute_Form_ContributionPa
         $editedResults = [];
         CRM_Price_BAO_PriceField::retrieve($editedFieldParams, $editedResults);
         if (empty($editedResults['id'])) {
-          $fieldParams['name'] = strtolower(CRM_Utils_String::munge('Membership Amount', '_', 245));
+          $fieldParams['name'] = 'membership_amount';
           if (empty($params['mem_price_field_id'])) {
             CRM_Utils_Weight::updateOtherWeights('CRM_Price_DAO_PriceField', 0, 1, ['price_set_id' => $priceSetID]);
           }

@@ -25,11 +25,17 @@ class SqlField extends SqlExpression {
     $this->fields[] = $this->expr;
   }
 
-  public function render(array $fieldList): string {
-    if (empty($fieldList[$this->expr])) {
-      throw new \API_Exception("Invalid field '{$this->expr}'");
+  public function render(Api4SelectQuery $query): string {
+    $field = $query->getField($this->expr, TRUE);
+    if (!empty($field['sql_renderer'])) {
+      $renderer = $field['sql_renderer'];
+      return $renderer($field, $query);
     }
-    return $fieldList[$this->expr]['sql_name'];
+    return $field['sql_name'];
+  }
+
+  public static function getTitle(): string {
+    return ts('Field');
   }
 
 }

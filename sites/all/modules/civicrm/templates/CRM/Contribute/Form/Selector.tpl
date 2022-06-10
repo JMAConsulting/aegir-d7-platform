@@ -15,7 +15,7 @@
     <thead class="sticky">
     <tr>
       {if !$single and $context eq 'Search' }
-        <th scope="col" title="Select Rows">{$form.toggleSelect.html}</th>
+        <th scope="col" title="{ts}Select rows{/ts}">{$form.toggleSelect.html}</th>
       {/if}
       {if !$single}
       <th scope="col"></th>
@@ -25,7 +25,7 @@
           {if $header.sort}
             {assign var='key' value=$header.sort}
             {$sort->_response.$key.link}
-          {else}
+          {elseif (!empty($header.name))}
             {$header.name}
           {/if}
         </th>
@@ -48,8 +48,12 @@
              <a class="nowrap bold crm-expand-row" title="{ts}view payments{/ts}" href="{crmURL p='civicrm/payment' q="view=transaction&component=contribution&action=browse&cid=`$row.contact_id`&id=`$row.contribution_id`&selector=1"}">
                &nbsp; {$row.total_amount|crmMoney:$row.currency}
             </a>
-          {if $row.amount_level }<br/>({$row.amount_level}){/if}
-          {if $row.contribution_recur_id}<br/>{ts}(Recurring){/ts}{/if}
+          {if $row.amount_level}<br/>({$row.amount_level}){/if}
+          {if $row.contribution_recur_id && $row.is_template}
+            <br/>{ts}(Recurring Template){/ts}
+          {elseif $row.contribution_recur_id }
+            <br/>{ts}(Recurring){/ts}
+          {/if}
         </td>
       {foreach from=$columnHeaders item=column}
         {assign var='columnName' value=$column.field_name}
@@ -69,7 +73,7 @@
               {$row.$columnName|crmDate}
             </td>
           {else}
-          <td class="crm-{$columnName} crm-{$columnName}_{$row.columnName}">
+          <td class="crm-{$columnName} crm-{$columnName}_">
             {$row.$columnName}
           </td>
           {/if}

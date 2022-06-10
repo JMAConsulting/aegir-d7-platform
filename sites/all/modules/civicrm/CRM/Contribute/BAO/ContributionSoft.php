@@ -9,19 +9,14 @@
  +--------------------------------------------------------------------+
  */
 
+use Civi\Api4\Contribution;
+
 /**
  *
  * @package CRM
  * @copyright CiviCRM LLC https://civicrm.org/licensing
  */
 class CRM_Contribute_BAO_ContributionSoft extends CRM_Contribute_DAO_ContributionSoft {
-
-  /**
-   * Construct method.
-   */
-  public function __construct() {
-    parent::__construct();
-  }
 
   /**
    * Add contribution soft credit record.
@@ -178,23 +173,21 @@ class CRM_Contribute_BAO_ContributionSoft extends CRM_Contribute_DAO_Contributio
   }
 
   /**
-   * Fetch object based on array of properties.
+   * Retrieve DB object and copy to defaults array.
    *
    * @param array $params
-   *   (reference ) an assoc array of name/value pairs.
+   *   Array of criteria values.
    * @param array $defaults
-   *   (reference ) an assoc array to hold the flattened values.
+   *   Array to be populated with found values.
    *
-   * @return CRM_Contribute_BAO_ContributionSoft
+   * @return self|null
+   *   The DAO object, if found.
+   *
+   * @deprecated
    */
-  public static function retrieve(&$params, &$defaults) {
-    $contributionSoft = new CRM_Contribute_DAO_ContributionSoft();
-    $contributionSoft->copyValues($params);
-    if ($contributionSoft->find(TRUE)) {
-      CRM_Core_DAO::storeValues($contributionSoft, $defaults);
-      return $contributionSoft;
-    }
-    return NULL;
+  public static function retrieve($params, &$defaults) {
+    CRM_Core_Error::deprecatedFunctionWarning('apiv4');
+    return self::commonRetrieve(self::class, $params, $defaults);
   }
 
   /**
@@ -381,7 +374,7 @@ class CRM_Contribute_BAO_ContributionSoft extends CRM_Contribute_DAO_Contributio
     $contactId = $params['cid'];
 
     $filter = NULL;
-    if ($params['context'] == 'membership' && !empty($params['entityID']) && $contactId) {
+    if ($params['context'] === 'membership' && !empty($params['entityID']) && $contactId) {
       $filter = " AND cc.id IN (SELECT contribution_id FROM civicrm_membership_payment WHERE membership_id = {$params['entityID']})";
     }
 
@@ -406,6 +399,7 @@ class CRM_Contribute_BAO_ContributionSoft extends CRM_Contribute_DAO_Contributio
    * @param array $dTParams
    *
    * @return array
+   * @throws \CRM_Core_Exception
    */
   public static function getSoftContributionList($contact_id, $filter = NULL, $isTest = 0, &$dTParams = NULL) {
     $config = CRM_Core_Config::singleton();
@@ -476,7 +470,7 @@ class CRM_Contribute_BAO_ContributionSoft extends CRM_Contribute_DAO_Contributio
     $dTParams['total'] = CRM_Core_DAO::singleValueQuery('SELECT FOUND_ROWS()');
     $result = [];
     while ($cs->fetch()) {
-      $result[$cs->id]['amount'] = CRM_Utils_Money::format($cs->amount, $cs->currency);
+      $result[$cs->id]['amount'] = Civi::format()->money($cs->amount, $cs->currency);
       $result[$cs->id]['currency'] = $cs->currency;
       $result[$cs->id]['contributor_id'] = $cs->contributor_id;
       $result[$cs->id]['contribution_id'] = $cs->contribution_id;
@@ -588,6 +582,7 @@ class CRM_Contribute_BAO_ContributionSoft extends CRM_Contribute_DAO_Contributio
    *
    * @throws \CRM_Core_Exception
    * @throws \CiviCRM_API3_Exception
+   * @throws \API_Exception
    */
   protected static function processPCP($pcp, $contribution) {
     $pcpId = self::getSoftCreditIds($contribution->id, TRUE);
@@ -607,14 +602,79 @@ class CRM_Contribute_BAO_ContributionSoft extends CRM_Contribute_DAO_Contributio
       $softParams['pcp_personal_note'] = $pcp['pcp_personal_note'] ?? NULL;
       $softParams['soft_credit_type_id'] = CRM_Core_PseudoConstant::getKey('CRM_Contribute_BAO_ContributionSoft', 'soft_credit_type_id', 'pcp');
       $contributionSoft = self::add($softParams);
-      //Send notification to owner for PCP
-      if ($contributionSoft->pcp_id && empty($pcpId)) {
-        CRM_Contribute_Form_Contribution_Confirm::pcpNotifyOwner($contribution, (array) $contributionSoft);
+      //Send notification to owner for PCP if the contribution is already completed.
+      if ($contributionSoft->pcp_id && empty($pcpId)
+        && 'Completed' === CRM_Core_PseudoConstant::getName('CRM_Contribute_BAO_Contribution', 'contribution_status_id', $contribution->contribution_status_id)
+      ) {
+        self::pcpNotifyOwner($contribution->id, (array) $contributionSoft);
       }
     }
     //Delete PCP against this contribution and create new on submitted PCP information
     elseif ($pcpId) {
       civicrm_api3('ContributionSoft', 'delete', ['id' => $pcpId]);
+    }
+  }
+
+  /**
+   * Function used to send notification mail to pcp owner.
+   *
+   * @param int $contributionID
+   * @param array $contributionSoft
+   *   Contribution object.
+   *
+   * @throws \API_Exception
+   * @throws \CRM_Core_Exception
+   */
+  public static function pcpNotifyOwner(int $contributionID, array $contributionSoft): void {
+    $params = ['id' => $contributionSoft['pcp_id']];
+    $contribution = Contribution::get(FALSE)
+      ->addWhere('id', '=', $contributionID)
+      ->addSelect('receive_date', 'contact_id')->execute()->first();
+    CRM_Core_DAO::commonRetrieve('CRM_PCP_DAO_PCP', $params, $pcpInfo);
+    $ownerNotifyID = CRM_Core_DAO::getFieldValue('CRM_PCP_DAO_PCPBlock', $pcpInfo['pcp_block_id'], 'owner_notify_id');
+    $ownerNotifyOption = CRM_Core_PseudoConstant::getName('CRM_PCP_DAO_PCPBlock', 'owner_notify_id', $ownerNotifyID);
+
+    if ($ownerNotifyOption !== 'no_notifications' &&
+      (($ownerNotifyOption === 'owner_chooses' &&
+          CRM_Core_DAO::getFieldValue('CRM_PCP_DAO_PCP', $contributionSoft['pcp_id'], 'is_notify')) ||
+        $ownerNotifyOption === 'all_owners')) {
+      $pcpInfoURL = CRM_Utils_System::url('civicrm/pcp/info',
+        "reset=1&id={$contributionSoft['pcp_id']}",
+        TRUE, NULL, FALSE, TRUE
+      );
+      // set email in the template here
+
+      if (CRM_Core_BAO_LocationType::getBilling()) {
+        [$donorName, $email] = CRM_Contact_BAO_Contact_Location::getEmailDetails($contribution['contact_id'],
+          FALSE, CRM_Core_BAO_LocationType::getBilling());
+      }
+      // get primary location email if no email exist( for billing location).
+      if (!$email) {
+        [$donorName, $email] = CRM_Contact_BAO_Contact_Location::getEmailDetails($contribution['contact_id']);
+      }
+      [$ownerName, $ownerEmail] = CRM_Contact_BAO_Contact_Location::getEmailDetails($contributionSoft['contact_id']);
+      $tplParams = [
+        'page_title' => $pcpInfo['title'],
+        'receive_date' => $contribution['receive_date'],
+        'total_amount' => $contributionSoft['amount'],
+        'donors_display_name' => $donorName,
+        'donors_email' => $email,
+        'pcpInfoURL' => $pcpInfoURL,
+        'is_honor_roll_enabled' => $contributionSoft['pcp_display_in_roll'],
+        'currency' => $contributionSoft['currency'],
+      ];
+      $domainValues = CRM_Core_BAO_Domain::getNameAndEmail();
+      $sendTemplateParams = [
+        'groupName' => 'msg_tpl_workflow_contribution',
+        'valueName' => 'pcp_owner_notify',
+        'contactId' => $contributionSoft['contact_id'],
+        'toEmail' => $ownerEmail,
+        'toName' => $ownerName,
+        'from' => "$domainValues[0] <$domainValues[1]>",
+        'tplParams' => $tplParams,
+        'PDFFilename' => 'receipt.pdf',
+      ];
+      CRM_Core_BAO_MessageTemplate::sendTemplate($sendTemplateParams);
     }
   }
 
